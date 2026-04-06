@@ -198,10 +198,9 @@ export default function Dashboard() {
               </a>
             </div>
             <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm text-slate-700">
-              <p className="font-semibold text-slate-900">Register and login details</p>
-              <p className="mt-2">Demo login email: <span className="font-semibold">demo@careerlaunchpad.ai</span></p>
-              <p>Password: <span className="font-semibold">Launchpad@2026</span></p>
-              <p className="mt-2">Users can also register from the auth page and then upload their CV from the CV Builder page.</p>
+              <p className="font-semibold text-slate-900">Prototype auth note</p>
+              <p className="mt-2">This legacy dashboard no longer exposes hardcoded login credentials.</p>
+              <p className="mt-2">Use the auth page to register a local browser-only user before visiting protected routes.</p>
             </div>
           </CardContent>
         </Card>

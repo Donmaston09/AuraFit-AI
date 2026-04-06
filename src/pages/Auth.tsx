@@ -1,12 +1,12 @@
 import { FormEvent, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { FileText, Lock, Mail, Sparkles, User } from "lucide-react";
+import { FileText, Mail, Sparkles, User } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { DEMO_USER, loginDemoUser, registerUser } from "@/lib/auth";
+import { loginStoredUser, registerUser } from "@/lib/auth";
 import { siteConfig } from "@/lib/site";
 
 export default function Auth() {
@@ -14,19 +14,17 @@ export default function Auth() {
   const location = useLocation();
   const redirectTo = (location.state as { from?: string } | null)?.from ?? "/dashboard";
 
-  const [loginEmail, setLoginEmail] = useState(DEMO_USER.email);
-  const [loginPassword, setLoginPassword] = useState(DEMO_USER.password);
+  const [loginEmail, setLoginEmail] = useState("");
   const [registerName, setRegisterName] = useState("");
   const [registerEmail, setRegisterEmail] = useState("");
-  const [registerPassword, setRegisterPassword] = useState("");
 
   const handleLogin = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const user = loginDemoUser(loginEmail, loginPassword);
+    const user = loginStoredUser(loginEmail);
 
     if (!user) {
       toast.error("Login failed.", {
-        description: "Use the demo login details shown on this page.",
+        description: "Register a local account on this browser first, then sign in with that email.",
       });
       return;
     }
@@ -38,13 +36,13 @@ export default function Auth() {
   const handleRegister = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (!registerName.trim() || !registerEmail.trim() || !registerPassword.trim()) {
-      toast.error("Complete all registration fields first.");
+    if (!registerName.trim() || !registerEmail.trim()) {
+      toast.error("Complete your name and email first.");
       return;
     }
 
     registerUser(registerName, registerEmail);
-    toast.success("Account created for the demo.", {
+    toast.success("Local account created.", {
       description: "You are now signed in locally on this browser.",
     });
     navigate("/dashboard", { replace: true });
@@ -56,23 +54,22 @@ export default function Auth() {
         <div className="rounded-[2rem] bg-slate-950 p-10 text-white shadow-2xl">
           <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-sm text-amber-300">
             <Sparkles size={16} />
-            Secure entry into the career workflow
+            Local browser-only access
           </div>
           <h1 className="mt-6 max-w-3xl text-4xl font-bold leading-tight">
-            Register or log in, then upload a CV in PDF, DOC, or DOCX format and start immediately.
+            Register a local account on this browser, then continue into the prototype workflow.
           </h1>
           <p className="mt-4 max-w-2xl text-slate-300">
-            This demo now includes a working auth entry screen and an upload intake step in the CV builder.
-            Gemini is positioned as the LLM brain for CV rewriting, cover letter drafting, job search support,
-            and application preparation, but real internet search and auto-submission still require backend API wiring.
+            This legacy route is not part of the current AuraFit app, but if you use it for testing,
+            it now relies on browser-local registration instead of hardcoded demo credentials.
           </p>
 
           <div className="mt-8 grid gap-4 md:grid-cols-2">
             {[
-              "Register a new local demo user",
-              "Login with a ready-made demo account",
-              "Upload CV files in pdf, doc, or docx format",
-              "Continue to Gemini-powered workflow planning",
+              "Register a local browser-only user",
+              "Sign in with the email you previously registered",
+              "Avoid shipping hardcoded credentials in source",
+              "Keep experimental flows isolated from production auth",
             ].map((item) => (
               <div key={item} className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-200">
                 {item}
@@ -81,10 +78,10 @@ export default function Auth() {
           </div>
 
           <div className="mt-10 rounded-3xl bg-white/8 p-6">
-            <p className="text-sm font-semibold uppercase tracking-[0.22em] text-amber-300">Demo login details</p>
+            <p className="text-sm font-semibold uppercase tracking-[0.22em] text-amber-300">Current behavior</p>
             <div className="mt-4 space-y-3 text-sm">
-              <p>Email: <span className="font-semibold">{DEMO_USER.email}</span></p>
-              <p>Password: <span className="font-semibold">{DEMO_USER.password}</span></p>
+              <p>Register with your own name and email on this browser.</p>
+              <p>Passwords are no longer hardcoded or stored by this demo route.</p>
               <p className="text-slate-300">
                 Creator: {siteConfig.creator}, {siteConfig.school}
               </p>
@@ -97,7 +94,7 @@ export default function Auth() {
             <div className="mb-6">
               <p className="text-2xl font-bold text-slate-900">Account Access</p>
               <p className="mt-2 text-sm text-slate-500">
-                Use the demo login, or create a local account for this browser session.
+                Sign in with a registered local email, or create one for this browser session.
               </p>
             </div>
 
@@ -114,13 +111,6 @@ export default function Auth() {
                     <div className="relative">
                       <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                       <Input className="pl-10" value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} />
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-slate-700">Password</label>
-                    <div className="relative">
-                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                      <Input className="pl-10" type="password" value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} />
                     </div>
                   </div>
                   <Button type="submit" className="w-full bg-slate-950 hover:bg-slate-800">
@@ -145,15 +135,8 @@ export default function Auth() {
                       <Input className="pl-10" value={registerEmail} onChange={(e) => setRegisterEmail(e.target.value)} placeholder="you@example.com" />
                     </div>
                   </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-slate-700">Password</label>
-                    <div className="relative">
-                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                      <Input className="pl-10" type="password" value={registerPassword} onChange={(e) => setRegisterPassword(e.target.value)} placeholder="Choose a password" />
-                    </div>
-                  </div>
                   <Button type="submit" className="w-full bg-slate-950 hover:bg-slate-800">
-                    Create Demo Account
+                    Create Local Account
                   </Button>
                 </form>
               </TabsContent>
@@ -165,7 +148,7 @@ export default function Auth() {
                 What happens next
               </div>
               <p className="mt-2">
-                After login, go to the CV Builder page and upload a CV file to begin the rewrite flow.
+                After login, continue to the protected demo route you were trying to open.
               </p>
             </div>
           </CardContent>

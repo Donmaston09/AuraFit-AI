@@ -7,6 +7,7 @@ type UsePoseWorkoutOptions = {
 };
 
 type FormQuality = "good" | "warn" | "idle";
+type CameraFacingMode = "user" | "environment";
 
 type WorkoutSnapshot = {
   exercise: WorkoutExercise;
@@ -17,9 +18,11 @@ type WorkoutSnapshot = {
 type PoseState = "up" | "down";
 
 const MODEL_ASSET =
+  import.meta.env.VITE_MEDIAPIPE_MODEL_ASSET_URL ??
   "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/latest/pose_landmarker_lite.task";
 
 const WASM_ROOT =
+  import.meta.env.VITE_MEDIAPIPE_WASM_ROOT ??
   "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm";
 
 const importantConnections: Array<[number, number]> = [
@@ -57,9 +60,30 @@ function landmarkVisible(landmark?: NormalizedLandmark) {
   return Boolean(landmark && (landmark.visibility ?? 1) > 0.45);
 }
 
+function describeCameraError(cameraError: unknown) {
+  if (cameraError instanceof DOMException) {
+    if (cameraError.name === "NotAllowedError") {
+      return "Camera access was denied. Allow camera permission in your browser and try again.";
+    }
+
+    if (cameraError.name === "NotFoundError" || cameraError.name === "OverconstrainedError") {
+      return "The selected camera is unavailable on this device. Try switching cameras or closing other camera apps.";
+    }
+
+    if (cameraError.name === "NotReadableError") {
+      return "The camera is busy in another app or browser tab. Close the other session and try again.";
+    }
+  }
+
+  return cameraError instanceof Error
+    ? cameraError.message
+    : "Unable to access the camera.";
+}
+
 export function usePoseWorkout({ exercise }: UsePoseWorkoutOptions) {
   const [detectorReady, setDetectorReady] = useState(false);
   const [isActive, setIsActive] = useState(false);
+  const [cameraFacingMode, setCameraFacingMode] = useState<CameraFacingMode>("user");
   const [repCount, setRepCount] = useState(0);
   const [feedback, setFeedback] = useState("Press start to begin.");
   const [formQuality, setFormQuality] = useState<FormQuality>("idle");
@@ -79,6 +103,16 @@ export function usePoseWorkout({ exercise }: UsePoseWorkoutOptions) {
   const poseStateRef = useRef<PoseState>("up");
   const sessionStartedAtRef = useRef<number | null>(null);
   const timerRef = useRef<number | null>(null);
+
+  const stopStreamOnly = () => {
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+
+    if (videoRef.current) {
+      videoRef.current.pause();
+      videoRef.current.srcObject = null;
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -153,12 +187,7 @@ export function usePoseWorkout({ exercise }: UsePoseWorkoutOptions) {
       timerRef.current = null;
     }
 
-    streamRef.current?.getTracks().forEach((track) => track.stop());
-    streamRef.current = null;
-
-    if (videoRef.current) {
-      videoRef.current.srcObject = null;
-    }
+    stopStreamOnly();
 
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext("2d");
@@ -394,11 +423,17 @@ export function usePoseWorkout({ exercise }: UsePoseWorkoutOptions) {
     try {
       setError("");
       resetWorkout();
-      setStatusMessage("Requesting front camera access.");
+      setStatusMessage(
+        cameraFacingMode === "user"
+          ? "Requesting front camera access."
+          : "Requesting rear camera access.",
+      );
+
+      stopStreamOnly();
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: false,
         video: {
-          facingMode: "user",
+          facingMode: { ideal: cameraFacingMode },
           width: { ideal: 1280 },
           height: { ideal: 720 },
         },
@@ -413,6 +448,7 @@ export function usePoseWorkout({ exercise }: UsePoseWorkoutOptions) {
 
       video.srcObject = stream;
       await video.play();
+      lastVideoTimeRef.current = -1;
 
       setIsActive(true);
       setFeedback("Tracking live form.");
@@ -432,12 +468,67 @@ export function usePoseWorkout({ exercise }: UsePoseWorkoutOptions) {
 
       rafRef.current = requestAnimationFrame(tick);
     } catch (cameraError) {
-      setError(
-        cameraError instanceof Error
-          ? cameraError.message
-          : "Unable to access the camera.",
-      );
+      setError(describeCameraError(cameraError));
       setStatusMessage("Camera access blocked.");
+      stopMedia();
+    }
+  };
+
+  const toggleCameraFacingMode = async () => {
+    const nextFacingMode = cameraFacingMode === "user" ? "environment" : "user";
+    setCameraFacingMode(nextFacingMode);
+
+    if (!isActive || !poseLandmarkerRef.current) {
+      setStatusMessage(
+        nextFacingMode === "user"
+          ? "Front camera selected. Start a workout when ready."
+          : "Rear camera selected. Start a workout when ready.",
+      );
+      return;
+    }
+
+    const previousRaf = rafRef.current;
+    if (previousRaf) {
+      cancelAnimationFrame(previousRaf);
+      rafRef.current = null;
+    }
+
+    try {
+      setError("");
+      setStatusMessage(
+        nextFacingMode === "user"
+          ? "Switching to the front camera."
+          : "Switching to the rear camera.",
+      );
+
+      stopStreamOnly();
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: {
+          facingMode: { ideal: nextFacingMode },
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
+      });
+
+      streamRef.current = stream;
+
+      const video = videoRef.current;
+      if (!video) {
+        throw new Error("Video element unavailable.");
+      }
+
+      video.srcObject = stream;
+      await video.play();
+      lastVideoTimeRef.current = -1;
+      setStatusMessage("Camera switched. Workout continues.");
+      rafRef.current = requestAnimationFrame(tick);
+    } catch (cameraError) {
+      setCameraFacingMode((currentMode) =>
+        currentMode === "user" ? "environment" : "user",
+      );
+      setError(describeCameraError(cameraError));
+      setStatusMessage("Unable to switch cameras.");
       stopMedia();
     }
   };
@@ -469,6 +560,7 @@ export function usePoseWorkout({ exercise }: UsePoseWorkoutOptions) {
   return {
     canvasRef,
     videoRef,
+    cameraFacingMode,
     detectorReady,
     isActive,
     feedback,
@@ -479,6 +571,7 @@ export function usePoseWorkout({ exercise }: UsePoseWorkoutOptions) {
     error,
     startWorkout,
     stopWorkout,
+    toggleCameraFacingMode,
     resetWorkout,
   };
 }

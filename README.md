@@ -16,7 +16,7 @@ Support my work: I am raising funds for internally displaced children across Mid
 
 ## What it does
 
-- Starts the front-facing camera from the browser
+- Starts with the front-facing camera and lets users switch between front and rear cameras on supported phones
 - Runs pose estimation entirely client-side for privacy
 - Tracks real-time reps for pushups, squats, and sit-ups
 - Shows live form feedback on top of the camera feed
@@ -27,7 +27,7 @@ Support my work: I am raising funds for internally displaced children across Mid
 
 - Video is not recorded or stored
 - Pose estimation happens in the browser
-- API keys are supplied by the user at request time and are not persisted
+- API keys are supplied by the user at request time and forwarded through the stateless backend for that single request
 - Recommendations are informational only and should not replace professional advice
 
 ## Frontend stack
@@ -93,7 +93,7 @@ uvicorn main:app --reload --host 0.0.0.0 --port 8000
 2. In your terminal:
 
 ```bash
-cd /Users/ao0028/Desktop/career_launchpad
+cd /Users/ao0028/Desktop/AuraFit-AI
 git init
 git add .
 git commit -m "Initial AuraFit AI app"
@@ -104,7 +104,7 @@ git push -u origin main
 
 ### Render
 
-This repo now includes a root Blueprint file at [`render.yaml`](/Users/ao0028/Desktop/career_launchpad/render.yaml) so you can deploy both the frontend and backend from the same GitHub repo.
+This repo now includes a root Blueprint file at [`render.yaml`](/Users/ao0028/Desktop/AuraFit-AI/render.yaml) so you can deploy both the frontend and backend from the same GitHub repo.
 
 1. Push the project to GitHub.
 2. In Render, click `New +` -> `Blueprint`.
@@ -120,6 +120,7 @@ This repo now includes a root Blueprint file at [`render.yaml`](/Users/ao0028/De
 Important:
 - `VITE_API_BASE_URL` is intentionally marked `sync: false` in the Blueprint, so Render will ask for it during the initial setup instead of hardcoding it in the repo.
 - If your frontend URL changes later, update both `VITE_API_BASE_URL` on the static site and `AURAFIT_ALLOWED_ORIGINS` on the backend, then redeploy.
+- Optional overrides: `VITE_MEDIAPIPE_MODEL_ASSET_URL` and `VITE_MEDIAPIPE_WASM_ROOT` let you self-host Mediapipe assets instead of relying on the default CDNs.
 
 ### Manual Render setup instead of Blueprint
 

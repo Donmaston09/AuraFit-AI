@@ -9,6 +9,7 @@ import {
   ExternalLink,
   LoaderCircle,
   Mail,
+  RefreshCcw,
   Salad,
   ShieldAlert,
   Sparkles,
@@ -77,6 +78,7 @@ function App() {
   const {
     canvasRef,
     videoRef,
+    cameraFacingMode,
     detectorReady,
     isActive,
     feedback,
@@ -87,6 +89,7 @@ function App() {
     error,
     startWorkout,
     stopWorkout,
+    toggleCameraFacingMode,
     resetWorkout,
   } = usePoseWorkout({ exercise: selectedExercise });
 
@@ -143,22 +146,76 @@ function App() {
   };
 
   const handleGenerateCoach = async () => {
+    const age = Number(biometrics.age);
+    const weightKg = Number(biometrics.weightKg);
+    const heightCm = Number(biometrics.heightCm);
+    const trimmedApiBaseUrl = apiBaseUrl.trim();
+    const trimmedModel = model.trim();
+    const trimmedApiKey = apiKey.trim();
+    const trimmedNotes = notes.trim();
+
+    if (!trimmedApiBaseUrl) {
+      setCoachError("Add your backend URL before generating coaching advice.");
+      return;
+    }
+
+    try {
+      new URL(trimmedApiBaseUrl);
+    } catch {
+      setCoachError("Use a valid backend URL, for example https://your-api.onrender.com.");
+      return;
+    }
+
+    if (!Number.isFinite(age) || age < 13 || age > 120) {
+      setCoachError("Enter an age between 13 and 120.");
+      return;
+    }
+
+    if (!Number.isFinite(weightKg) || weightKg < 20 || weightKg > 400) {
+      setCoachError("Enter a weight between 20 kg and 400 kg.");
+      return;
+    }
+
+    if (!Number.isFinite(heightCm) || heightCm < 90 || heightCm > 260) {
+      setCoachError("Enter a height between 90 cm and 260 cm.");
+      return;
+    }
+
+    if (!trimmedModel) {
+      setCoachError("Choose a model before generating coaching advice.");
+      return;
+    }
+
+    if (!trimmedApiKey) {
+      setCoachError("Paste your API key for this session before continuing.");
+      return;
+    }
+
+    if (trimmedNotes.length > 1200) {
+      setCoachError("Coach notes must stay under 1200 characters.");
+      return;
+    }
+
     setCoachLoading(true);
     setCoachError("");
 
     const payload: CoachPayload = {
       provider,
-      model,
-      apiKey,
+      model: trimmedModel,
+      apiKey: trimmedApiKey,
       goals: goal,
       activityLevel,
-      biometrics,
+      biometrics: {
+        age: String(age),
+        weightKg: String(weightKg),
+        heightCm: String(heightCm),
+      },
       workoutSummary,
-      notes,
+      notes: trimmedNotes,
     };
 
     try {
-      const response = await fetch(`${apiBaseUrl.replace(/\/$/, "")}/api/coach/analyze`, {
+      const response = await fetch(`${trimmedApiBaseUrl.replace(/\/$/, "")}/api/coach/analyze`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -232,11 +289,17 @@ function App() {
                         autoPlay
                         muted
                         playsInline
-                        className="h-full w-full scale-x-[-1] object-cover"
+                        className={cn(
+                          "h-full w-full object-cover",
+                          cameraFacingMode === "user" ? "scale-x-[-1]" : "",
+                        )}
                       />
                       <canvas
                         ref={canvasRef}
-                        className="pointer-events-none absolute inset-0 h-full w-full scale-x-[-1]"
+                        className={cn(
+                          "pointer-events-none absolute inset-0 h-full w-full",
+                          cameraFacingMode === "user" ? "scale-x-[-1]" : "",
+                        )}
                       />
                       <div className="pointer-events-none absolute inset-x-4 top-4 flex items-start justify-between gap-3">
                         <OverlayBadge
@@ -279,6 +342,21 @@ function App() {
                             ))}
                           </SelectContent>
                         </Select>
+                      </div>
+
+                      <div className="grid gap-2">
+                        <Label>Camera</Label>
+                        <Button
+                          onClick={toggleCameraFacingMode}
+                          variant="secondary"
+                          className="h-11 justify-between rounded-xl border border-white/10 bg-white/8 text-white hover:bg-white/12"
+                        >
+                          <span>{cameraFacingMode === "user" ? "Front camera" : "Rear camera"}</span>
+                          <RefreshCcw className="h-4 w-4 text-cyan-300" />
+                        </Button>
+                        <p className="text-xs text-slate-400">
+                          Swap between selfie and outward-facing cameras on phones without leaving the workout screen.
+                        </p>
                       </div>
 
                       <div className="rounded-2xl border border-cyan-400/15 bg-cyan-400/8 p-4 text-sm text-slate-200">
@@ -464,7 +542,7 @@ function App() {
                       placeholder="Paste your provider key for this session"
                     />
                     <p className="text-xs text-slate-400">
-                      The frontend never stores your key. It is passed only with this request to the stateless backend.
+                      AuraFit does not store your key in the browser. It is forwarded to the stateless backend only for this request.
                     </p>
                   </div>
 

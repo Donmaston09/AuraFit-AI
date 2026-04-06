@@ -7,30 +7,46 @@ from typing import Literal
 import httpx
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class Biometrics(BaseModel):
-    age: str
-    weightKg: str
-    heightCm: str
+    age: int = Field(ge=13, le=120)
+    weightKg: float = Field(gt=20, le=400)
+    heightCm: float = Field(gt=90, le=260)
 
 
 class WorkoutSummary(BaseModel):
-    pushups: int = 0
-    squats: int = 0
-    situps: int = 0
+    pushups: int = Field(default=0, ge=0, le=5000)
+    squats: int = Field(default=0, ge=0, le=5000)
+    situps: int = Field(default=0, ge=0, le=5000)
 
 
 class CoachRequest(BaseModel):
     provider: Literal["openai", "gemini"]
     model: str = Field(min_length=1)
     apiKey: str = Field(min_length=1)
-    goals: str = Field(min_length=1)
-    activityLevel: str = Field(min_length=1)
+    goals: Literal["strength", "weight-loss", "mobility"]
+    activityLevel: Literal["light", "moderate", "high"]
     biometrics: Biometrics
     workoutSummary: WorkoutSummary
-    notes: str = ""
+    notes: str = Field(default="", max_length=1200)
+
+    @field_validator("model", "apiKey", mode="before")
+    @classmethod
+    def strip_required_strings(cls, value: str) -> str:
+        if not isinstance(value, str):
+            raise ValueError("Must be a string.")
+
+        value = value.strip()
+        if not value:
+            raise ValueError("Cannot be empty.")
+        return value
+
+    @field_validator("notes", mode="before")
+    @classmethod
+    def normalize_notes(cls, value: str) -> str:
+        return value.strip() if isinstance(value, str) else ""
 
 
 app = FastAPI(title="AuraFit AI Coach API", version="0.1.0")
@@ -91,6 +107,16 @@ Extra context:
 """.strip()
 
 
+def provider_error_message(response: httpx.Response) -> str:
+    if response.status_code in {401, 403}:
+        return "Provider rejected the request. Check your API key and model access."
+
+    if 400 <= response.status_code < 500:
+        return "Provider could not process the request. Check the selected model and request inputs."
+
+    return "Provider service is temporarily unavailable. Please try again in a moment."
+
+
 async def call_openai(payload: CoachRequest) -> dict:
     async with httpx.AsyncClient(timeout=45) as client:
         response = await client.post(
@@ -112,8 +138,8 @@ async def call_openai(payload: CoachRequest) -> dict:
 
     if response.status_code >= 400:
         raise HTTPException(
-            status_code=response.status_code,
-            detail=response.text,
+            status_code=response.status_code if response.status_code < 500 else 502,
+            detail=provider_error_message(response),
         )
 
     body = response.json()
@@ -150,8 +176,8 @@ async def call_gemini(payload: CoachRequest) -> dict:
 
     if response.status_code >= 400:
         raise HTTPException(
-            status_code=response.status_code,
-            detail=response.text,
+            status_code=response.status_code if response.status_code < 500 else 502,
+            detail=provider_error_message(response),
         )
 
     body = response.json()
@@ -162,6 +188,16 @@ async def call_gemini(payload: CoachRequest) -> dict:
 @app.get("/health")
 async def health_check():
     return {"ok": True}
+
+
+@app.get("/")
+async def root():
+    return {
+        "service": "AuraFit AI Coach API",
+        "status": "ok",
+        "health": "/health",
+        "analyze": "/api/coach/analyze",
+    }
 
 
 @app.post("/api/coach/analyze")

@@ -1,10 +1,4 @@
-export const DEMO_USER = {
-  name: "Anthony Demo",
-  email: "demo@careerlaunchpad.ai",
-  password: "Launchpad@2026",
-};
-
-const AUTH_KEY = "career_launchpad_auth";
+const AUTH_KEY = "aurafit_auth";
 
 export type AuthUser = {
   name: string;
@@ -29,16 +23,13 @@ export function getStoredUser(): AuthUser | null {
   }
 }
 
-export function loginDemoUser(email: string, password: string): AuthUser | null {
-  const matches =
-    email.trim().toLowerCase() === DEMO_USER.email.toLowerCase() &&
-    password === DEMO_USER.password;
+export function loginStoredUser(email: string): AuthUser | null {
+  const user = getStoredUser();
 
-  if (!matches) {
+  if (!user || user.email !== email.trim().toLowerCase()) {
     return null;
   }
 
-  const user = { name: DEMO_USER.name, email: DEMO_USER.email };
   window.localStorage.setItem(AUTH_KEY, JSON.stringify(user));
   return user;
 }

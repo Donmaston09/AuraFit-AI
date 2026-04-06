@@ -1,5 +1,5 @@
 {
-  "name": "career-launchpad-ai",
+  "name": "aurafit-ai",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -67,7 +67,7 @@
     "react-hook-form": "^7.63.0",
     "react-resizable-panels": "^3.0.6",
     "react-router": "^7.9.4",
-    "react-router-dom": "^7.9.3",
+    "react-router-dom": "^7.9.4",
     "recharts": "2.15.4",
     "sonner": "^2.0.7",
     "supabase": "^2.76.15",
