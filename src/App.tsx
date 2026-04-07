@@ -58,6 +58,19 @@ const defaultSummary: WorkoutSummary = {
   situps: 0,
 };
 
+const providerKeyLinks = {
+  openai: {
+    label: "OpenAI API keys",
+    url: "https://platform.openai.com/api-keys",
+    helpUrl: "https://help.openai.com/en/articles/4936850-how-to-create-and-use-an-api-key",
+  },
+  gemini: {
+    label: "Google AI Studio API keys",
+    url: "https://aistudio.google.com/apikey",
+    helpUrl: "https://ai.google.dev/gemini-api/docs/api-key",
+  },
+} as const;
+
 const backdropMotion = {
   initial: { opacity: 0, y: 18 },
   animate: { opacity: 1, y: 0 },
@@ -619,6 +632,26 @@ function App() {
                     <p className="text-xs text-slate-400">
                       AuraFit does not store your key in the browser. It is forwarded to the stateless backend only for this request.
                     </p>
+                    <div className="flex flex-col gap-2 text-xs text-cyan-100 sm:flex-row sm:flex-wrap sm:items-center">
+                      <a
+                        href={providerKeyLinks[provider].url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-cyan-300/20 bg-cyan-400/10 px-3 py-2 transition hover:bg-cyan-400/16"
+                      >
+                        Get your {providerKeyLinks[provider].label}
+                        <ExternalLink className="h-3.5 w-3.5" />
+                      </a>
+                      <a
+                        href={providerKeyLinks[provider].helpUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-slate-300 transition hover:bg-white/8"
+                      >
+                        Setup guide
+                        <ExternalLink className="h-3.5 w-3.5" />
+                      </a>
+                    </div>
                   </div>
 
                   <div className="grid gap-2">
