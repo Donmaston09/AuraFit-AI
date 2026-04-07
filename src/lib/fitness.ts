@@ -66,3 +66,44 @@ export const exerciseOptions: Record<WorkoutExercise, { label: string; setup: st
     hint: "Reps count when you curl up and return with control. The tracker uses hip angle changes to estimate each sit-up.",
   },
 };
+
+export const exerciseDemoAssets: Record<
+  WorkoutExercise,
+  {
+    title: string;
+    src: string;
+    poster?: string;
+    cues: string[];
+  }
+> = {
+  pushups: {
+    title: "Pushup demo",
+    src: "/exercise-demos/pushups-demo.mp4",
+    poster: "/gebeya.webp",
+    cues: [
+      "Start in a strong plank with your shoulders stacked over your hands.",
+      "Lower under control until your elbows bend to roughly 90 degrees.",
+      "Press back up while keeping your neck neutral and core braced.",
+    ],
+  },
+  squats: {
+    title: "Squat demo",
+    src: "/exercise-demos/squats-demo.mp4",
+    poster: "/gebeya.webp",
+    cues: [
+      "Stand tall with your feet planted and your chest proud.",
+      "Sit back and down until you reach comfortable squat depth.",
+      "Drive through your feet to return to standing with control.",
+    ],
+  },
+  situps: {
+    title: "Sit-up demo",
+    src: "/exercise-demos/situps-demo.mp4",
+    poster: "/gebeya.webp",
+    cues: [
+      "Start on your back with your knees bent and feet stable.",
+      "Curl your torso up smoothly instead of yanking through your neck.",
+      "Lower back down with control before starting the next rep.",
+    ],
+  },
+};

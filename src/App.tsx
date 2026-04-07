@@ -5,6 +5,7 @@ import {
   Camera,
   CheckCircle2,
   CircleDollarSign,
+  CirclePlay,
   Dumbbell,
   ExternalLink,
   Globe,
@@ -14,6 +15,7 @@ import {
   RotateCcw,
   RotateCw,
   Salad,
+  X,
   ShieldAlert,
   Sparkles,
   TimerReset,
@@ -29,7 +31,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import { type CoachPayload, defaultBiometrics, exerciseOptions, goalOptions, type WorkoutExercise, workoutPlanByGoal } from "@/lib/fitness";
+import { type CoachPayload, defaultBiometrics, exerciseDemoAssets, exerciseOptions, goalOptions, type WorkoutExercise, workoutPlanByGoal } from "@/lib/fitness";
 import { usePoseWorkout } from "@/hooks/usePoseWorkout";
 
 type WorkoutSummary = Record<WorkoutExercise, number>;
@@ -91,6 +93,8 @@ function App() {
   const [notes, setNotes] = useState("");
   const [useWebResearch, setUseWebResearch] = useState(true);
   const [cameraRotation, setCameraRotation] = useState<0 | 90 | 180 | 270>(0);
+  const [showDemoModal, setShowDemoModal] = useState(false);
+  const [demoVideoReady, setDemoVideoReady] = useState(true);
   const [workoutSummary, setWorkoutSummary] = useState<WorkoutSummary>(defaultSummary);
   const [sessionHistory, setSessionHistory] = useState<
     Array<{ exercise: WorkoutExercise; reps: number; durationSeconds: number; completedAt: string }>
@@ -118,6 +122,7 @@ function App() {
   } = usePoseWorkout({ exercise: selectedExercise });
 
   const todaysPlan = useMemo(() => workoutPlanByGoal[goal], [goal]);
+  const selectedDemo = useMemo(() => exerciseDemoAssets[selectedExercise], [selectedExercise]);
   const totalReps = useMemo(
     () => Object.values(workoutSummary).reduce((total, value) => total + value, 0),
     [workoutSummary],
@@ -277,6 +282,12 @@ function App() {
     });
   };
 
+  const handleExerciseChange = (value: WorkoutExercise) => {
+    setSelectedExercise(value);
+    setDemoVideoReady(true);
+    resetWorkout();
+  };
+
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(46,226,255,0.22),_transparent_22%),radial-gradient(circle_at_80%_20%,_rgba(87,255,158,0.12),_transparent_18%),linear-gradient(180deg,_#02070f_0%,_#07111f_45%,_#030712_100%)] text-white">
       <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 py-[max(1.25rem,env(safe-area-inset-top))] pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:px-6 lg:px-8">
@@ -372,10 +383,7 @@ function App() {
                         <Select
                           disabled={isActive}
                           value={selectedExercise}
-                          onValueChange={(value: WorkoutExercise) => {
-                            setSelectedExercise(value);
-                            resetWorkout();
-                          }}
+                          onValueChange={handleExerciseChange}
                         >
                           <SelectTrigger id="exercise" className="border-white/10 bg-white/5 text-white">
                             <SelectValue placeholder="Choose exercise" />
@@ -430,6 +438,55 @@ function App() {
                         <p className="mt-2 text-slate-300">
                           {exerciseOptions[selectedExercise].hint}
                         </p>
+                      </div>
+
+                      <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-semibold text-white">Exercise demo</p>
+                            <p className="mt-1 text-xs leading-5 text-slate-400">
+                              Watch a quick reference clip before you start your set.
+                            </p>
+                          </div>
+                          <Button
+                            onClick={() => setShowDemoModal(true)}
+                            variant="secondary"
+                            className="h-12 shrink-0 rounded-xl border border-white/10 bg-white/8 px-4 text-white hover:bg-white/12"
+                          >
+                            <CirclePlay className="mr-2 h-4 w-4 text-cyan-300" />
+                            Watch
+                          </Button>
+                        </div>
+
+                        <div className="mt-4 overflow-hidden rounded-2xl border border-white/10 bg-slate-950/70">
+                          <video
+                            key={selectedDemo.src}
+                            controls
+                            preload="metadata"
+                            playsInline
+                            poster={selectedDemo.poster}
+                            className="aspect-video w-full bg-slate-950 object-cover"
+                            onCanPlay={() => setDemoVideoReady(true)}
+                            onError={() => setDemoVideoReady(false)}
+                          >
+                            <source src={selectedDemo.src} type="video/mp4" />
+                          </video>
+                          <div className="space-y-3 p-4">
+                            <p className="text-sm font-medium text-cyan-100">{selectedDemo.title}</p>
+                            {!demoVideoReady ? (
+                              <p className="text-xs leading-5 text-amber-200">
+                                Add a local MP4 at <code>{selectedDemo.src}</code> to show this demo in the app.
+                              </p>
+                            ) : null}
+                            <div className="grid gap-2">
+                              {selectedDemo.cues.map((cue) => (
+                                <p key={cue} className="text-xs leading-5 text-slate-300">
+                                  {cue}
+                                </p>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
                       </div>
 
                       <div className="grid gap-2">
@@ -896,6 +953,79 @@ function App() {
             </motion.section>
           </div>
         </main>
+      </div>
+      <ExerciseDemoModal
+        open={showDemoModal}
+        onClose={() => setShowDemoModal(false)}
+        demo={selectedDemo}
+      />
+    </div>
+  );
+}
+
+function ExerciseDemoModal({
+  open,
+  onClose,
+  demo,
+}: {
+  open: boolean;
+  onClose: () => void;
+  demo: {
+    title: string;
+    src: string;
+    poster?: string;
+    cues: string[];
+  };
+}) {
+  const [videoAvailable, setVideoAvailable] = useState(true);
+
+  if (!open) {
+    return null;
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/82 p-4 backdrop-blur sm:items-center">
+      <div className="w-full max-w-2xl overflow-hidden rounded-[1.75rem] border border-white/10 bg-slate-950 shadow-2xl">
+        <div className="flex items-center justify-between border-b border-white/10 px-4 py-4 sm:px-5">
+          <div>
+            <p className="text-base font-semibold text-white">{demo.title}</p>
+            <p className="mt-1 text-xs text-slate-400">Use this as a quick form reference before you start tracking.</p>
+          </div>
+          <Button
+            onClick={onClose}
+            variant="ghost"
+            className="h-11 w-11 rounded-full border border-white/10 p-0 text-slate-200 hover:bg-white/8"
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+
+        <video
+          key={demo.src}
+          controls
+          autoPlay
+          playsInline
+          preload="metadata"
+          poster={demo.poster}
+          className="aspect-video w-full bg-black object-cover"
+          onCanPlay={() => setVideoAvailable(true)}
+          onError={() => setVideoAvailable(false)}
+        >
+          <source src={demo.src} type="video/mp4" />
+        </video>
+
+        <div className="space-y-3 p-4 sm:p-5">
+          {!videoAvailable ? (
+            <div className="rounded-2xl border border-amber-400/25 bg-amber-400/10 p-4 text-sm leading-6 text-amber-100">
+              The demo video file is not in the repo yet. Drop an MP4 into <code>{demo.src}</code> and it will appear here automatically.
+            </div>
+          ) : null}
+          {demo.cues.map((cue) => (
+            <p key={cue} className="text-sm leading-6 text-slate-200">
+              {cue}
+            </p>
+          ))}
+        </div>
       </div>
     </div>
   );
