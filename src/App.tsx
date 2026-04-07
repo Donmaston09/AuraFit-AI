@@ -7,9 +7,12 @@ import {
   CircleDollarSign,
   Dumbbell,
   ExternalLink,
+  Globe,
   LoaderCircle,
   Mail,
   RefreshCcw,
+  RotateCcw,
+  RotateCw,
   Salad,
   ShieldAlert,
   Sparkles,
@@ -41,6 +44,12 @@ type CoachResponse = {
   sleepAdvice: string[];
   stressAdvice: string[];
   disclaimer: string;
+  liveResearch?: {
+    enabled: boolean;
+    provider: "openai" | "gemini";
+    summary: string;
+    sources: Array<{ title: string; url: string }>;
+  };
 };
 
 const defaultSummary: WorkoutSummary = {
@@ -67,6 +76,8 @@ function App() {
   const [model, setModel] = useState("gpt-4.1-mini");
   const [apiKey, setApiKey] = useState("");
   const [notes, setNotes] = useState("");
+  const [useWebResearch, setUseWebResearch] = useState(true);
+  const [cameraRotation, setCameraRotation] = useState<0 | 90 | 180 | 270>(0);
   const [workoutSummary, setWorkoutSummary] = useState<WorkoutSummary>(defaultSummary);
   const [sessionHistory, setSessionHistory] = useState<
     Array<{ exercise: WorkoutExercise; reps: number; durationSeconds: number; completedAt: string }>
@@ -212,6 +223,8 @@ function App() {
       },
       workoutSummary,
       notes: trimmedNotes,
+      useWebResearch,
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     };
 
     try {
@@ -241,12 +254,22 @@ function App() {
     }
   };
 
+  const rotatePreview = (direction: "left" | "right") => {
+    setCameraRotation((current) => {
+      if (direction === "left") {
+        return (((current + 270) % 360) as 0 | 90 | 180 | 270);
+      }
+
+      return (((current + 90) % 360) as 0 | 90 | 180 | 270);
+    });
+  };
+
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(46,226,255,0.22),_transparent_22%),radial-gradient(circle_at_80%_20%,_rgba(87,255,158,0.12),_transparent_18%),linear-gradient(180deg,_#02070f_0%,_#07111f_45%,_#030712_100%)] text-white">
-      <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 py-6 sm:px-6 lg:px-8">
+      <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 py-[max(1.25rem,env(safe-area-inset-top))] pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:px-6 lg:px-8">
         <motion.header
           {...backdropMotion}
-          className="mb-6 overflow-hidden rounded-[2rem] border border-white/10 bg-white/6 p-6 shadow-[0_0_60px_rgba(26,163,255,0.08)] backdrop-blur-xl"
+          className="mb-6 overflow-hidden rounded-[2rem] border border-white/10 bg-white/6 p-5 shadow-[0_0_60px_rgba(26,163,255,0.08)] backdrop-blur-xl sm:p-6"
         >
           <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
             <div className="max-w-3xl space-y-4">
@@ -282,25 +305,30 @@ function App() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-6 p-5 sm:p-6">
-                  <div className="grid gap-4 md:grid-cols-[0.72fr_0.28fr]">
-                    <div className="relative aspect-[4/5] overflow-hidden rounded-[1.75rem] border border-white/10 bg-slate-900">
-                      <video
-                        ref={videoRef}
-                        autoPlay
-                        muted
-                        playsInline
-                        className={cn(
-                          "h-full w-full object-cover",
-                          cameraFacingMode === "user" ? "scale-x-[-1]" : "",
-                        )}
-                      />
-                      <canvas
-                        ref={canvasRef}
-                        className={cn(
-                          "pointer-events-none absolute inset-0 h-full w-full",
-                          cameraFacingMode === "user" ? "scale-x-[-1]" : "",
-                        )}
-                      />
+                  <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_280px]">
+                    <div className="relative aspect-[3/4] overflow-hidden rounded-[1.75rem] border border-white/10 bg-slate-900 sm:aspect-[4/5]">
+                      <div
+                        className="relative h-full w-full transition-transform duration-300 ease-out"
+                        style={{ transform: `rotate(${cameraRotation}deg)` }}
+                      >
+                        <video
+                          ref={videoRef}
+                          autoPlay
+                          muted
+                          playsInline
+                          className={cn(
+                            "h-full w-full object-cover",
+                            cameraFacingMode === "user" ? "scale-x-[-1]" : "",
+                          )}
+                        />
+                        <canvas
+                          ref={canvasRef}
+                          className={cn(
+                            "pointer-events-none absolute inset-0 h-full w-full",
+                            cameraFacingMode === "user" ? "scale-x-[-1]" : "",
+                          )}
+                        />
+                      </div>
                       <div className="pointer-events-none absolute inset-x-4 top-4 flex items-start justify-between gap-3">
                         <OverlayBadge
                           label="Form Check"
@@ -313,6 +341,11 @@ function App() {
                           accent="cyan"
                         />
                       </div>
+                      {cameraRotation !== 0 ? (
+                        <div className="pointer-events-none absolute left-4 top-24 rounded-full border border-white/15 bg-slate-950/70 px-3 py-1 text-xs font-medium text-cyan-100 backdrop-blur">
+                          View rotated {cameraRotation}°
+                        </div>
+                      ) : null}
                       <div className="pointer-events-none absolute inset-x-4 bottom-4 grid gap-3 sm:grid-cols-3">
                         <OverlayStat label="Exercise" value={exerciseOptions[selectedExercise].label} />
                         <OverlayStat label="Elapsed" value={`${elapsedSeconds}s`} />
@@ -349,13 +382,31 @@ function App() {
                         <Button
                           onClick={toggleCameraFacingMode}
                           variant="secondary"
-                          className="h-11 justify-between rounded-xl border border-white/10 bg-white/8 text-white hover:bg-white/12"
+                          className="h-12 justify-between rounded-xl border border-white/10 bg-white/8 px-4 text-white hover:bg-white/12"
                         >
                           <span>{cameraFacingMode === "user" ? "Front camera" : "Rear camera"}</span>
                           <RefreshCcw className="h-4 w-4 text-cyan-300" />
                         </Button>
+                        <div className="grid grid-cols-2 gap-2">
+                          <Button
+                            onClick={() => rotatePreview("left")}
+                            variant="ghost"
+                            className="h-12 rounded-xl border border-white/10 text-slate-200 hover:bg-white/8"
+                          >
+                            <RotateCcw className="mr-2 h-4 w-4 text-cyan-300" />
+                            Rotate Left
+                          </Button>
+                          <Button
+                            onClick={() => rotatePreview("right")}
+                            variant="ghost"
+                            className="h-12 rounded-xl border border-white/10 text-slate-200 hover:bg-white/8"
+                          >
+                            <RotateCw className="mr-2 h-4 w-4 text-cyan-300" />
+                            Rotate Right
+                          </Button>
+                        </div>
                         <p className="text-xs text-slate-400">
-                          Swap between selfie and outward-facing cameras on phones without leaving the workout screen.
+                          Swap cameras or rotate the preview to match how your phone is mounted during exercise.
                         </p>
                       </div>
 
@@ -372,7 +423,7 @@ function App() {
                         <Button
                           onClick={handleStartWorkout}
                           disabled={isActive}
-                          className="h-11 rounded-xl bg-cyan-400 text-slate-950 hover:bg-cyan-300"
+                          className="h-12 rounded-xl bg-cyan-400 text-slate-950 hover:bg-cyan-300"
                         >
                           Start AI Workout
                         </Button>
@@ -380,14 +431,14 @@ function App() {
                           onClick={handleStopWorkout}
                           disabled={!isActive}
                           variant="secondary"
-                          className="h-11 rounded-xl border border-white/10 bg-white/8 text-white hover:bg-white/12"
+                          className="h-12 rounded-xl border border-white/10 bg-white/8 text-white hover:bg-white/12"
                         >
                           Stop and Add to Summary
                         </Button>
                         <Button
                           onClick={resetWorkout}
                           variant="ghost"
-                          className="h-11 rounded-xl border border-white/10 text-slate-200 hover:bg-white/8"
+                          className="h-12 rounded-xl border border-white/10 text-slate-200 hover:bg-white/8"
                         >
                           Reset Current Counter
                         </Button>
@@ -531,6 +582,30 @@ function App() {
                     placeholder="http://127.0.0.1:8000"
                   />
 
+                  <button
+                    type="button"
+                    onClick={() => setUseWebResearch((current) => !current)}
+                    className={cn(
+                      "flex min-h-11 w-full items-start justify-between gap-4 rounded-2xl border px-4 py-3 text-left transition",
+                      useWebResearch
+                        ? "border-cyan-300/30 bg-cyan-400/10 text-cyan-50"
+                        : "border-white/10 bg-white/5 text-slate-200",
+                    )}
+                  >
+                    <div>
+                      <p className="flex items-center gap-2 text-sm font-medium">
+                        <Globe className="h-4 w-4" />
+                        Live web research
+                      </p>
+                      <p className="mt-1 text-xs leading-5 text-slate-300">
+                        Pull in fresh internet-backed training, nutrition, and recovery ideas with source links after your workout.
+                      </p>
+                    </div>
+                    <span className="pt-0.5 text-xs font-semibold uppercase tracking-[0.22em]">
+                      {useWebResearch ? "On" : "Off"}
+                    </span>
+                  </button>
+
                   <div className="grid gap-2">
                     <Label htmlFor="api-key">Bring your own API key</Label>
                     <Input
@@ -561,7 +636,7 @@ function App() {
                     <Button
                       onClick={handleGenerateCoach}
                       disabled={coachLoading || totalReps === 0 || !apiKey}
-                      className="h-11 rounded-xl bg-lime-300 text-slate-950 hover:bg-lime-200"
+                      className="h-12 rounded-xl bg-lime-300 text-slate-950 hover:bg-lime-200"
                     >
                       {coachLoading ? (
                         <>
@@ -569,13 +644,13 @@ function App() {
                           Generating recommendations
                         </>
                       ) : (
-                        "Generate AI Summary"
+                        useWebResearch ? "Generate AI Summary + Live Research" : "Generate AI Summary"
                       )}
                     </Button>
                     <Button
                       onClick={handleResetSession}
                       variant="ghost"
-                      className="h-11 rounded-xl border border-white/10 text-slate-200 hover:bg-white/8"
+                      className="h-12 rounded-xl border border-white/10 text-slate-200 hover:bg-white/8"
                     >
                       Clear Day Session
                     </Button>
@@ -670,6 +745,34 @@ function App() {
                         />
                         <SummaryBlock title="Sleep hygiene" items={coachResult.sleepAdvice} />
                         <SummaryBlock title="Stress management" items={coachResult.stressAdvice} />
+
+                        {coachResult.liveResearch?.enabled ? (
+                          <div className="rounded-2xl border border-sky-300/20 bg-sky-400/8 p-4">
+                            <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.22em] text-sky-100">
+                              <Globe className="h-4 w-4" />
+                              Live Web Research
+                            </div>
+                            <p className="mt-3 text-sm leading-6 text-slate-200">
+                              {coachResult.liveResearch.summary}
+                            </p>
+                            {coachResult.liveResearch.sources.length > 0 ? (
+                              <div className="mt-4 grid gap-2">
+                                {coachResult.liveResearch.sources.map((source) => (
+                                  <a
+                                    key={source.url}
+                                    href={source.url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="inline-flex min-h-11 items-center justify-between gap-3 rounded-xl border border-white/10 bg-slate-950/45 px-4 py-3 text-sm text-cyan-100 transition hover:bg-slate-900/70"
+                                  >
+                                    <span className="truncate">{source.title}</span>
+                                    <ExternalLink className="h-4 w-4 shrink-0" />
+                                  </a>
+                                ))}
+                              </div>
+                            ) : null}
+                          </div>
+                        ) : null}
 
                         <div className="rounded-2xl border border-amber-400/25 bg-amber-400/10 p-4 text-xs leading-5 text-amber-100">
                           {coachResult.disclaimer}

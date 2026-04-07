@@ -31,6 +31,8 @@ class CoachRequest(BaseModel):
     biometrics: Biometrics
     workoutSummary: WorkoutSummary
     notes: str = Field(default="", max_length=1200)
+    useWebResearch: bool = True
+    timezone: str | None = Field(default=None, max_length=80)
 
     @field_validator("model", "apiKey", mode="before")
     @classmethod
@@ -47,6 +49,18 @@ class CoachRequest(BaseModel):
     @classmethod
     def normalize_notes(cls, value: str) -> str:
         return value.strip() if isinstance(value, str) else ""
+
+    @field_validator("timezone", mode="before")
+    @classmethod
+    def normalize_timezone(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+
+        if not isinstance(value, str):
+            return None
+
+        value = value.strip()
+        return value or None
 
 
 app = FastAPI(title="AuraFit AI Coach API", version="0.1.0")
@@ -107,6 +121,30 @@ Extra context:
 """.strip()
 
 
+def build_research_prompt(payload: CoachRequest) -> str:
+    return f"""
+You are preparing fresh, internet-grounded fitness guidance for a completed workout.
+
+User goal: {payload.goals}
+Activity level: {payload.activityLevel}
+Age: {payload.biometrics.age}
+Weight kg: {payload.biometrics.weightKg}
+Height cm: {payload.biometrics.heightCm}
+Workout totals:
+- Pushups: {payload.workoutSummary.pushups}
+- Squats: {payload.workoutSummary.squats}
+- Sit-ups: {payload.workoutSummary.situps}
+
+Context:
+{payload.notes or "No additional notes provided."}
+
+Search the web for current, reputable advice and return a concise response with:
+1. a short paragraph of fresh recommendations tailored to this user,
+2. 3 bullet-style action points covering training, nutrition, and recovery,
+3. only practical, non-medical advice.
+""".strip()
+
+
 def provider_error_message(response: httpx.Response) -> str:
     if response.status_code in {401, 403}:
         return "Provider rejected the request. Check your API key and model access."
@@ -115,6 +153,64 @@ def provider_error_message(response: httpx.Response) -> str:
         return "Provider could not process the request. Check the selected model and request inputs."
 
     return "Provider service is temporarily unavailable. Please try again in a moment."
+
+
+def unique_sources(sources: list[dict]) -> list[dict]:
+    seen: set[str] = set()
+    unique: list[dict] = []
+
+    for source in sources:
+        url = source.get("url")
+        if not url or url in seen:
+            continue
+
+        seen.add(url)
+        unique.append(
+            {
+                "title": source.get("title") or url,
+                "url": url,
+            }
+        )
+
+    return unique[:6]
+
+
+def extract_openai_sources(body: dict) -> list[dict]:
+    sources: list[dict] = []
+
+    for item in body.get("output", []):
+        if item.get("type") != "message":
+            continue
+
+        for content in item.get("content", []):
+            for annotation in content.get("annotations", []):
+                if annotation.get("type") == "url_citation":
+                    sources.append(
+                        {
+                            "title": annotation.get("title") or annotation.get("url"),
+                            "url": annotation.get("url"),
+                        }
+                    )
+
+    return unique_sources(sources)
+
+
+def extract_gemini_sources(body: dict) -> list[dict]:
+    chunks = body.get("candidates", [{}])[0].get("groundingMetadata", {}).get("groundingChunks", [])
+    sources: list[dict] = []
+
+    for chunk in chunks:
+        web = chunk.get("web")
+        if not web:
+            continue
+        sources.append(
+            {
+                "title": web.get("title") or web.get("uri"),
+                "url": web.get("uri"),
+            }
+        )
+
+    return unique_sources(sources)
 
 
 async def call_openai(payload: CoachRequest) -> dict:
@@ -185,6 +281,78 @@ async def call_gemini(payload: CoachRequest) -> dict:
     return json.loads(content)
 
 
+async def call_openai_research(payload: CoachRequest) -> dict:
+    request_body = {
+        "model": payload.model,
+        "input": build_research_prompt(payload),
+        "tools": [{"type": "web_search"}],
+    }
+
+    async with httpx.AsyncClient(timeout=60) as client:
+        response = await client.post(
+            "https://api.openai.com/v1/responses",
+            headers={
+                "Authorization": f"Bearer {payload.apiKey}",
+                "Content-Type": "application/json",
+            },
+            json=request_body,
+        )
+
+    if response.status_code >= 400:
+        raise HTTPException(
+            status_code=response.status_code if response.status_code < 500 else 502,
+            detail=provider_error_message(response),
+        )
+
+    body = response.json()
+    return {
+        "enabled": True,
+        "provider": "openai",
+        "summary": body.get("output_text", "").strip(),
+        "sources": extract_openai_sources(body),
+    }
+
+
+async def call_gemini_research(payload: CoachRequest) -> dict:
+    endpoint = (
+        "https://generativelanguage.googleapis.com/v1beta/models/"
+        f"{payload.model}:generateContent?key={payload.apiKey}"
+    )
+
+    async with httpx.AsyncClient(timeout=60) as client:
+        response = await client.post(
+            endpoint,
+            headers={"Content-Type": "application/json"},
+            json={
+                "tools": [{"google_search": {}}],
+                "contents": [
+                    {
+                        "role": "user",
+                        "parts": [{"text": build_research_prompt(payload)}],
+                    }
+                ],
+                "generationConfig": {
+                    "temperature": 0.6,
+                },
+            },
+        )
+
+    if response.status_code >= 400:
+        raise HTTPException(
+            status_code=response.status_code if response.status_code < 500 else 502,
+            detail=provider_error_message(response),
+        )
+
+    body = response.json()
+    summary = body["candidates"][0]["content"]["parts"][0]["text"].strip()
+    return {
+        "enabled": True,
+        "provider": "gemini",
+        "summary": summary,
+        "sources": extract_gemini_sources(body),
+    }
+
+
 @app.get("/health")
 async def health_check():
     return {"ok": True}
@@ -204,9 +372,21 @@ async def root():
 async def analyze_workout(payload: CoachRequest):
     try:
         if payload.provider == "openai":
-            return await call_openai(payload)
+            coaching = await call_openai(payload)
+            research = (
+                await call_openai_research(payload)
+                if payload.useWebResearch
+                else {"enabled": False, "provider": "openai", "summary": "", "sources": []}
+            )
+            return {**coaching, "liveResearch": research}
 
-        return await call_gemini(payload)
+        coaching = await call_gemini(payload)
+        research = (
+            await call_gemini_research(payload)
+            if payload.useWebResearch
+            else {"enabled": False, "provider": "gemini", "summary": "", "sources": []}
+        )
+        return {**coaching, "liveResearch": research}
     except json.JSONDecodeError as exc:
         raise HTTPException(
             status_code=502,

@@ -178,11 +178,29 @@
 @layer base {
   * {
     @apply border-border outline-ring/50;
+    -webkit-tap-highlight-color: transparent;
+  }
+  html {
+    background: #02070f;
+    color-scheme: dark;
   }
   body {
     @apply bg-background text-foreground;
     letter-spacing: var(--tracking-normal);
     font-family: var(--font-sans);
     min-height: 100vh;
+    min-height: 100dvh;
+    overscroll-behavior-y: none;
+  }
+  button,
+  [role="button"],
+  input,
+  select,
+  textarea {
+    min-height: 44px;
+  }
+  #root {
+    min-height: 100vh;
+    min-height: 100dvh;
   }
 }

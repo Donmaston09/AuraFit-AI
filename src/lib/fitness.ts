@@ -15,6 +15,8 @@ export type CoachPayload = {
   biometrics: Biometrics;
   workoutSummary: Record<WorkoutExercise, number>;
   notes: string;
+  useWebResearch: boolean;
+  timezone?: string;
 };
 
 export const defaultBiometrics: Biometrics = {
