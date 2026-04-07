@@ -63,11 +63,24 @@ class CoachRequest(BaseModel):
         return value or None
 
 
+def parse_allowed_origins(raw_origins: str | None) -> list[str]:
+    if not raw_origins:
+        return ["*"]
+
+    origins = []
+    for origin in raw_origins.split(","):
+        normalized = origin.strip().rstrip("/")
+        if normalized:
+            origins.append(normalized)
+
+    return origins or ["*"]
+
+
 app = FastAPI(title="AuraFit AI Coach API", version="0.1.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=os.getenv("AURAFIT_ALLOWED_ORIGINS", "*").split(","),
+    allow_origins=parse_allowed_origins(os.getenv("AURAFIT_ALLOWED_ORIGINS")),
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
