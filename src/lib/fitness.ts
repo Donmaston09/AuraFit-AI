@@ -78,7 +78,7 @@ export const exerciseDemoAssets: Record<
 > = {
   pushups: {
     title: "Pushup demo",
-    src: "/exercise-demos/pushups-demo.mp4",
+    src: "/exercise-demos/pushups-demo.webm",
     poster: "/gebeya.webp",
     cues: [
       "Start in a strong plank with your shoulders stacked over your hands.",
@@ -88,7 +88,7 @@ export const exerciseDemoAssets: Record<
   },
   squats: {
     title: "Squat demo",
-    src: "/exercise-demos/squats-demo.mp4",
+    src: "/exercise-demos/squats-demo.webm",
     poster: "/gebeya.webp",
     cues: [
       "Stand tall with your feet planted and your chest proud.",
@@ -98,7 +98,7 @@ export const exerciseDemoAssets: Record<
   },
   situps: {
     title: "Sit-up demo",
-    src: "/exercise-demos/situps-demo.mp4",
+    src: "/exercise-demos/situps-demo.webm",
     poster: "/gebeya.webp",
     cues: [
       "Start on your back with your knees bent and feet stable.",

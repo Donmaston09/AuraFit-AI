@@ -1,8 +1,8 @@
-Add local MP4 demo files here for the in-app exercise walkthroughs.
+Local exercise demo videos for the in-app walkthroughs.
 
-Expected filenames:
-- pushups-demo.mp4
-- squats-demo.mp4
-- situps-demo.mp4
+Current filenames:
+- pushups-demo.webm
+- squats-demo.webm
+- situps-demo.webm
 
 These files are loaded by the exercise demo panel in the workout UI.

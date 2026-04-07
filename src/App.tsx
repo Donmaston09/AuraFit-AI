@@ -469,7 +469,7 @@ function App() {
                             onCanPlay={() => setDemoVideoReady(true)}
                             onError={() => setDemoVideoReady(false)}
                           >
-                            <source src={selectedDemo.src} type="video/mp4" />
+                            <source src={selectedDemo.src} type="video/webm" />
                           </video>
                           <div className="space-y-3 p-4">
                             <p className="text-sm font-medium text-cyan-100">{selectedDemo.title}</p>
@@ -1011,7 +1011,7 @@ function ExerciseDemoModal({
           onCanPlay={() => setVideoAvailable(true)}
           onError={() => setVideoAvailable(false)}
         >
-          <source src={demo.src} type="video/mp4" />
+          <source src={demo.src} type="video/webm" />
         </video>
 
         <div className="space-y-3 p-4 sm:p-5">
